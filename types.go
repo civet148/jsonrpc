@@ -1,8 +1,6 @@
 package jsonrpc
 
 const (
-	UrlSchemeWS    = "ws"
-	UrlSchemeWSS   = "wss"
-	UrlSchemeHTTP  = "http"
-	UrlSchemeHTTPS = "https"
+	UrlSchemeWS  = "ws"
+	UrlSchemeWSS = "wss"
 )
