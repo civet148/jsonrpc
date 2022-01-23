@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/civet148/log v1.1.0
-	github.com/civet148/pool v0.1.0
+	github.com/civet148/pool v0.1.1
 	github.com/filecoin-project/go-jsonrpc v0.1.5
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
