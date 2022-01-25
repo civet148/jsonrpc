@@ -53,12 +53,14 @@ func (c *RelayClient) Call(strRequest string) (strResponse string, err error) {
 		log.Errorf(err.Error())
 		return
 	}
-	defer c.pool.Put(conn)
 	err = conn.WriteMessage(websocket.TextMessage, []byte(strRequest))
 	if err != nil {
-		log.Errorf("WriteMessage error [%s]", err.Error())
+		log.Errorf("write message error [%s]", err.Error())
+		_ = conn.Close() //broken pipe maybe
 		return
 	}
+	defer c.pool.Put(conn)
+
 	var msg []byte
 	_, msg, err = conn.ReadMessage()
 	strResponse = string(msg)
