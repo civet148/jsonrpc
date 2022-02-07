@@ -1,6 +1,7 @@
 package jsonrpc
 
 import (
+	"context"
 	"fmt"
 	"github.com/civet148/log"
 	"github.com/civet148/pool"
@@ -44,7 +45,7 @@ func newConnPool(strUrl string, header http.Header, options ...*RelayOption) *po
 	return p
 }
 
-//Call only relay a JSON-RPC request json string to remote server
+//Call only relay a JSON-RPC request to remote server
 func (c *RelayClient) Call(strRequest string) (strResponse string, err error) {
 	var conn *websocket.Conn
 	conn = c.pool.Get().(*websocket.Conn)
@@ -64,6 +65,36 @@ func (c *RelayClient) Call(strRequest string) (strResponse string, err error) {
 	var msg []byte
 	_, msg, err = conn.ReadMessage()
 	strResponse = string(msg)
+	return
+}
+
+//Subscribe send a JSON-RPC request to remote server and subscribe this channel
+func (c *RelayClient) Subscribe(ctx context.Context, strRequest string, cb func(c context.Context, msg string) error) (err error) {
+	var conn *websocket.Conn
+	conn = c.pool.Get().(*websocket.Conn)
+	if conn == nil {
+		err = fmt.Errorf("websocket connection is nil")
+		log.Errorf(err.Error())
+		return
+	}
+	err = conn.WriteMessage(websocket.TextMessage, []byte(strRequest))
+	if err != nil {
+		log.Errorf("write message error [%s]", err.Error())
+		_ = conn.Close() //broken pipe maybe
+		return
+	}
+	defer c.pool.Put(conn)
+	var msg []byte
+	for {
+		_, msg, err = conn.ReadMessage()
+		if err != nil {
+			log.Errorf("read message error [%s]", err.Error())
+			break
+		}
+		if err = cb(ctx, string(msg)); err != nil {
+			break
+		}
+	}
 	return
 }
 
