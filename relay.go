@@ -68,5 +68,5 @@ func (c *RelayClient) Call(strRequest string) (strResponse string, err error) {
 }
 
 func (c *RelayClient) Close() {
-
+	c.pool.RemoveAll()
 }

@@ -25,4 +25,5 @@ func main() {
 		return
 	}
 	log.Infof("RPC relay response [%s]", strResponse)
+	relay.Close()
 }
