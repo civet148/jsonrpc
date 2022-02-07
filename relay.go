@@ -14,13 +14,15 @@ type RelayOption struct {
 }
 
 type RelayClient struct {
-	pool *pool.Pool
+	pool    *pool.Pool
+	closing chan struct{}
 }
 
 func NewRelayClient(strUrl string, header http.Header, options ...*RelayOption) *RelayClient {
 
 	return &RelayClient{
-		pool: newConnPool(strUrl, header, options...),
+		closing: make(chan struct{}, 1),
+		pool:    newConnPool(strUrl, header, options...),
 	}
 }
 
@@ -69,7 +71,7 @@ func (c *RelayClient) Call(strRequest string) (strResponse string, err error) {
 }
 
 //Subscribe send a JSON-RPC request to remote server and subscribe this channel
-func (c *RelayClient) Subscribe(ctx context.Context, strRequest string, cb func(c context.Context, msg string) error) (err error) {
+func (c *RelayClient) Subscribe(ctx context.Context, strRequest string, cb func(c context.Context, msg string) bool) (err error) {
 	var conn *websocket.Conn
 	conn = c.pool.Get().(*websocket.Conn)
 	if conn == nil {
@@ -83,21 +85,33 @@ func (c *RelayClient) Subscribe(ctx context.Context, strRequest string, cb func(
 		_ = conn.Close() //broken pipe maybe
 		return
 	}
-	defer c.pool.Put(conn)
+	var closed bool
 	var msg []byte
 	for {
+		select {
+		case <-c.closing:
+			closed = true
+		}
+		if closed {
+			_ = conn.Close()
+			break
+		}
 		_, msg, err = conn.ReadMessage()
 		if err != nil {
 			log.Errorf("read message error [%s]", err.Error())
 			break
 		}
-		if err = cb(ctx, string(msg)); err != nil {
-			break
+		if ok := cb(ctx, string(msg)); ok == false {
+			break //stop subscribe
 		}
+	}
+	if !closed {
+		c.pool.Put(conn)
 	}
 	return
 }
 
 func (c *RelayClient) Close() {
 	c.pool.RemoveAll()
+	c.closing <- struct{}{}
 }
