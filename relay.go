@@ -14,15 +14,14 @@ type RelayOption struct {
 }
 
 type RelayClient struct {
-	pool    *pool.Pool
-	closing chan struct{}
+	pool   *pool.Pool
+	closed bool
 }
 
 func NewRelayClient(strUrl string, header http.Header, options ...*RelayOption) *RelayClient {
 
 	return &RelayClient{
-		closing: make(chan struct{}, 1),
-		pool:    newConnPool(strUrl, header, options...),
+		pool: newConnPool(strUrl, header, options...),
 	}
 }
 
@@ -85,14 +84,9 @@ func (c *RelayClient) Subscribe(ctx context.Context, strRequest string, cb func(
 		_ = conn.Close() //broken pipe maybe
 		return
 	}
-	var closed bool
 	var msg []byte
 	for {
-		select {
-		case <-c.closing:
-			closed = true
-		}
-		if closed {
+		if c.closed {
 			_ = conn.Close()
 			break
 		}
@@ -105,7 +99,7 @@ func (c *RelayClient) Subscribe(ctx context.Context, strRequest string, cb func(
 			break //stop subscribe
 		}
 	}
-	if !closed {
+	if !c.closed {
 		c.pool.Put(conn)
 	}
 	return
@@ -113,5 +107,5 @@ func (c *RelayClient) Subscribe(ctx context.Context, strRequest string, cb func(
 
 func (c *RelayClient) Close() {
 	c.pool.RemoveAll()
-	c.closing <- struct{}{}
+	c.closed = true
 }
