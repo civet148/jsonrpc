@@ -126,6 +126,35 @@ func (c *WebSocketClient) Subscribe(ctx context.Context, cb func(ctx context.Con
 	return
 }
 
+
+//Send send a JSON-RPC request to remote server and return immediately
+func (c *WebSocketClient) Send(method string, params ...interface{}) (err error) {
+	var conn *websocket.Conn
+	conn = c.pool.Get().(*websocket.Conn)
+	if conn == nil {
+		err = fmt.Errorf("websocket connection is nil")
+		log.Errorf(err.Error())
+		return
+	}
+	if method != "" {
+		var request []byte
+		request, err = MarshalJSONRpcRequest(genRequestID(), method, params...)
+		if err != nil {
+			log.Errorf(err.Error())
+			return err
+		}
+		err = conn.WriteMessage(websocket.TextMessage, request)
+		if err != nil {
+			log.Errorf("write message error [%s]", err.Error())
+			_ = conn.Close() //broken pipe maybe
+			return
+		}
+	}
+	defer c.pool.Put(conn)
+	return
+}
+
+
 func (c *WebSocketClient) Close() {
 	c.pool.RemoveAll()
 	c.closed = true

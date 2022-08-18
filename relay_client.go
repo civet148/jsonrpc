@@ -69,8 +69,7 @@ func (c *RelayClient) Call(strRequest string) (strResponse string, err error) {
 	return
 }
 
-
-//Call only relay a JSON-RPC request to remote server and return immediately
+//Send send a JSON-RPC request to remote server and return immediately
 func (c *RelayClient) Send(strRequest string) (err error) {
 	var conn *websocket.Conn
 	conn = c.pool.Get().(*websocket.Conn)
