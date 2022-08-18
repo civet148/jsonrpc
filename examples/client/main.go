@@ -28,7 +28,7 @@ func init() {
 func main() {
 	var client GatewayClient
 	var strRemoteAddr = common.GatewayUrl
-	c, err := jsonrpc.NewClient(context.Background(), strRemoteAddr, common.GatewayNamespace, nil, &client)
+	c, err := jsonrpc.NewMergeClient(context.Background(), strRemoteAddr, common.GatewayNamespace, nil, &client)
 	if err != nil {
 		fmt.Printf("jsonrpc.NewClient error [%s]\n", err.Error())
 		return

@@ -8,30 +8,30 @@ import (
 	"net/url"
 )
 
-type Server struct {
+type MergeServer struct {
 	rpcServer *jsonrpc.RPCServer
 }
 
-func NewServer(strNamespace string, handler interface{}) *Server {
+func NewMergeServer(strNamespace string, handler interface{}) *MergeServer {
 	rpcServer := jsonrpc.NewServer()
 	rpcServer.Register(strNamespace, handler)
-	return &Server{
+	return &MergeServer{
 		rpcServer: rpcServer,
 	}
 }
 
 //ServeHTTP http handler
-func (m *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (m *MergeServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m.rpcServer.ServeHTTP(w, r)
 }
 
 //AliasMethod alias method to new name
-func (m *Server) AliasMethod(alias, original string) {
+func (m *MergeServer) AliasMethod(alias, original string) {
 	m.rpcServer.AliasMethod(alias, original)
 }
 
 //ListenAndServe start a http server (NOTE: routine will be blocked)
-func (m *Server) ListenAndServe(strUrl string) (err error) {
+func (m *MergeServer) ListenAndServe(strUrl string) (err error) {
 	u, err := url.Parse(strUrl)
 	if err != nil {
 		err = fmt.Errorf("parse url [%s] error [%s]", strUrl, err)

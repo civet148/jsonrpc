@@ -7,21 +7,21 @@ import (
 	"net/http"
 )
 
-type Client struct {
+type MergeClient struct {
 	closer gojsonrpc.ClientCloser
 }
 
-func NewClient(ctx context.Context, strUrl, strSpaceName string, requestHeader http.Header, handlers ...interface{}) (*Client, error) {
+func NewMergeClient(ctx context.Context, strUrl, strSpaceName string, requestHeader http.Header, handlers ...interface{}) (*MergeClient, error) {
 	closer, err := gojsonrpc.NewMergeClient(ctx, strUrl, strSpaceName, handlers, requestHeader)
 	if err != nil {
 		log.Errorf("new json rpc client error [%s]", err.Error())
 		return nil, err
 	}
-	return &Client{
+	return &MergeClient{
 		closer: closer,
 	}, nil
 }
 
-func (m *Client) Close() {
+func (m *MergeClient) Close() {
 	m.closer()
 }

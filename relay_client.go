@@ -69,8 +69,9 @@ func (c *RelayClient) Call(strRequest string) (strResponse string, err error) {
 	return
 }
 
-//Subscribe send a JSON-RPC request to remote server and subscribe this channel
-func (c *RelayClient) Subscribe(ctx context.Context, strRequest string, cb func(c context.Context, msg string) bool) (err error) {
+
+//Call only relay a JSON-RPC request to remote server and return immediately
+func (c *RelayClient) Send(strRequest string) (err error) {
 	var conn *websocket.Conn
 	conn = c.pool.Get().(*websocket.Conn)
 	if conn == nil {
@@ -84,18 +85,40 @@ func (c *RelayClient) Subscribe(ctx context.Context, strRequest string, cb func(
 		_ = conn.Close() //broken pipe maybe
 		return
 	}
-	var msg []byte
+	defer c.pool.Put(conn)
+	return
+}
+
+//Subscribe send a JSON-RPC request to remote server and subscribe this channel (if request is nil, just subscribe)
+func (c *RelayClient) Subscribe(ctx context.Context, strRequest string, cb func(c context.Context, msg []byte) bool) (err error) {
+	var conn *websocket.Conn
+	conn = c.pool.Get().(*websocket.Conn)
+	if conn == nil {
+		err = fmt.Errorf("websocket connection is nil")
+		log.Errorf(err.Error())
+		return
+	}
+	if strRequest != "" {
+		err = conn.WriteMessage(websocket.TextMessage, []byte(strRequest))
+		if err != nil {
+			log.Errorf("write message error [%s]", err.Error())
+			_ = conn.Close() //broken pipe maybe
+			return
+		}
+	}
+
 	for {
 		if c.closed {
 			_ = conn.Close()
 			break
 		}
+		var msg []byte
 		_, msg, err = conn.ReadMessage()
 		if err != nil {
 			log.Errorf("read message error [%s]", err.Error())
 			break
 		}
-		if ok := cb(ctx, string(msg)); ok == false {
+		if ok := cb(ctx, msg); ok == false {
 			break //stop subscribe
 		}
 	}

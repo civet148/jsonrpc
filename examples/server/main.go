@@ -41,7 +41,7 @@ func TestRPCServer() {
 
 	serverHandler := &GatewayServer{}
 	////listen http://host:port/ for RPC call with standard HTTP server
-	//rpcServer := jsonrpc.NewServer(common.GatewayNamespace, serverHandler)
+	//rpcServer := jsonrpc.NewMergeServer(common.GatewayNamespace, serverHandler)
 	//log.Infof("namespace [%s] address [%s] listening...\n", common.GatewayNamespace, common.GatewayHttpAddr)
 	//if err := http.ListenAndServe(common.GatewayHttpAddr, rpcServer); err != nil {
 	//	log.Errorf(err.Error())
@@ -50,7 +50,7 @@ func TestRPCServer() {
 
 	//listen http://host:port/rpc/v0 for RPC call with internal HTTP server
 	var strUrl = common.GatewayUrl
-	rpcServer := jsonrpc.NewServer(common.GatewayNamespace, serverHandler)
+	rpcServer := jsonrpc.NewMergeServer(common.GatewayNamespace, serverHandler)
 
 	log.Infof("namespace [%s] url [%s] listening...", common.GatewayNamespace, strUrl)
 	if err := rpcServer.ListenAndServe(strUrl); err != nil {
