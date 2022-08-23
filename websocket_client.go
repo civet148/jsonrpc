@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/websocket"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 )
 
@@ -35,8 +36,12 @@ func newWebSocketPool(strUrl string, header http.Header) *pool.Pool {
 	}
 	log.Infof("header [%+v]", header)
 	if u.Scheme != UrlSchemeWS && u.Scheme != UrlSchemeWSS {
-		log.Panic("url scheme not 'ws' or 'wss'")
-		return nil
+		if "http" == strings.ToLower(u.Scheme) {
+			 u.Scheme = "ws"
+		}
+		if "https" == strings.ToLower(u.Scheme) {
+			u.Scheme = "wss"
+		}
 	}
 	var p = pool.New(func() interface{} {
 		var conn *websocket.Conn
