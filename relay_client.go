@@ -74,8 +74,8 @@ func (c *RelayClient) Call(strRequest string) (strResponse string, err error) {
 	return
 }
 
-//Send send a JSON-RPC request to remote server and return immediately
-func (c *RelayClient) Send(strRequest string) (err error) {
+//CallNoReply send a JSON-RPC request to remote server and return immediately
+func (c *RelayClient) CallNoReply(strRequest string) (err error) {
 	var conn *websocket.Conn
 	conn = c.pool.Get().(*websocket.Conn)
 	if conn == nil {

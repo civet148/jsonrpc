@@ -87,7 +87,7 @@ func (c *WebSocketClient) Call(out interface{}, method string, params ...interfa
 }
 
 //Subscribe send a JSON-RPC request to remote server and subscribe this channel (if method is nil, just subscribe)
-func (c *WebSocketClient) Subscribe(ctx context.Context, cb func(ctx context.Context, msg []byte) bool, method string, params ...interface{}) (err error) {
+func (c *WebSocketClient) SubscribeCall(ctx context.Context, cb func(ctx context.Context, msg []byte) bool, method string, params ...interface{}) (err error) {
 	var conn *websocket.Conn
 	conn = c.pool.Get().(*websocket.Conn)
 	if conn == nil {
@@ -132,8 +132,8 @@ func (c *WebSocketClient) Subscribe(ctx context.Context, cb func(ctx context.Con
 }
 
 
-//SubscribeRelay send a request to remote server and subscribe this channel (if request is nil, just subscribe)
-func (c *WebSocketClient) SubscribeRelay(ctx context.Context, strRequest string, cb func(c context.Context, msg []byte) bool) (err error) {
+//Subscribe send a request to remote server and subscribe this channel (if request is nil, just subscribe)
+func (c *WebSocketClient) Subscribe(ctx context.Context, strRequest string, cb func(c context.Context, msg []byte) bool) (err error) {
 	var conn *websocket.Conn
 	conn = c.pool.Get().(*websocket.Conn)
 	if conn == nil {
@@ -171,8 +171,8 @@ func (c *WebSocketClient) SubscribeRelay(ctx context.Context, strRequest string,
 	return
 }
 
-//Send send a JSON-RPC request to remote server and return immediately
-func (c *WebSocketClient) Send(method string, params ...interface{}) (err error) {
+//CallNoReply send a JSON-RPC request to remote server and return immediately
+func (c *WebSocketClient) CallNoReply(method string, params ...interface{}) (err error) {
 	var conn *websocket.Conn
 	conn = c.pool.Get().(*websocket.Conn)
 	if conn == nil {
