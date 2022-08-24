@@ -83,7 +83,7 @@ func (c *WebSocketClient) Call(out interface{}, method string, params ...interfa
 	if err = resp.Unmarshal(msg, out); err != nil {
 		return err
 	}
-	return log.Errorf(err.Error())
+	return nil
 }
 
 //Subscribe send a JSON-RPC request to remote server and subscribe this channel (if method is nil, just subscribe)

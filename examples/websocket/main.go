@@ -73,7 +73,7 @@ type BlockResponse struct {
 func main() {
 	var strUserName = "iTHwEPZ4YE54UTP4dq"
 	var strPassword = "VEJLH67I9QyQx8pn0nTxmciLSWj11bhDAtNU"
-	var strUrl = "ws://192.168.20.119:28082/api/v1/gateway/rpc"
+	var strUrl = "ws://192.168.20.119:28082/api/v1"
 	var strToken = fmt.Sprintf("%s:%s", strUserName, strPassword)
 	strToken = base64.StdEncoding.EncodeToString([]byte(strToken))
 	header := http.Header{}
