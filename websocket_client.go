@@ -132,6 +132,45 @@ func (c *WebSocketClient) Subscribe(ctx context.Context, cb func(ctx context.Con
 }
 
 
+//SubscribeRelay send a request to remote server and subscribe this channel (if request is nil, just subscribe)
+func (c *WebSocketClient) SubscribeRelay(ctx context.Context, strRequest string, cb func(c context.Context, msg []byte) bool) (err error) {
+	var conn *websocket.Conn
+	conn = c.pool.Get().(*websocket.Conn)
+	if conn == nil {
+		err = fmt.Errorf("websocket connection is nil")
+		log.Errorf(err.Error())
+		return
+	}
+	if strRequest != "" {
+		err = conn.WriteMessage(websocket.TextMessage, []byte(strRequest))
+		if err != nil {
+			log.Errorf("write message error [%s]", err.Error())
+			_ = conn.Close() //broken pipe maybe
+			return
+		}
+	}
+
+	for {
+		if c.closed {
+			_ = conn.Close()
+			break
+		}
+		var msg []byte
+		_, msg, err = conn.ReadMessage()
+		if err != nil {
+			log.Errorf("read message error [%s]", err.Error())
+			break
+		}
+		if ok := cb(ctx, msg); ok == false {
+			break //stop subscribe
+		}
+	}
+	if !c.closed {
+		c.pool.Put(conn)
+	}
+	return
+}
+
 //Send send a JSON-RPC request to remote server and return immediately
 func (c *WebSocketClient) Send(method string, params ...interface{}) (err error) {
 	var conn *websocket.Conn
