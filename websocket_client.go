@@ -86,7 +86,7 @@ func (c *WebSocketClient) Call(out interface{}, method string, params ...interfa
 	return nil
 }
 
-//Subscribe send a JSON-RPC request to remote server and subscribe this channel (if method is nil, just subscribe)
+//SubscribeCall send a JSON-RPC request to remote server and subscribe this channel (if method is nil, just subscribe)
 func (c *WebSocketClient) SubscribeCall(ctx context.Context, cb func(ctx context.Context, msg []byte) bool, method string, params ...interface{}) (err error) {
 	var conn *websocket.Conn
 	conn = c.pool.Get().(*websocket.Conn)
@@ -133,7 +133,7 @@ func (c *WebSocketClient) SubscribeCall(ctx context.Context, cb func(ctx context
 
 
 //Subscribe send a request to remote server and subscribe this channel (if request is nil, just subscribe)
-func (c *WebSocketClient) Subscribe(ctx context.Context, strRequest string, cb func(c context.Context, msg []byte) bool) (err error) {
+func (c *WebSocketClient) Subscribe(ctx context.Context, request []byte, cb func(c context.Context, msg []byte) bool) (err error) {
 	var conn *websocket.Conn
 	conn = c.pool.Get().(*websocket.Conn)
 	if conn == nil {
@@ -141,8 +141,8 @@ func (c *WebSocketClient) Subscribe(ctx context.Context, strRequest string, cb f
 		log.Errorf(err.Error())
 		return
 	}
-	if strRequest != "" {
-		err = conn.WriteMessage(websocket.TextMessage, []byte(strRequest))
+	if len(request) != 0 {
+		err = conn.WriteMessage(websocket.TextMessage, request)
 		if err != nil {
 			log.Errorf("write message error [%s]", err.Error())
 			_ = conn.Close() //broken pipe maybe
