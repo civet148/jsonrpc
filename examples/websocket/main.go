@@ -6,6 +6,7 @@ import (
 	"github.com/civet148/jsonrpc"
 	"github.com/civet148/log"
 	"net/http"
+	"time"
 )
 
 /*
@@ -70,6 +71,10 @@ type BlockResponse struct {
 		} `json:"header"`
 }
 
+func init() {
+	log.SetLevel("debug")
+}
+
 func main() {
 	var strUserName = "iTHwEPZ4YE54UTP4dq"
 	var strPassword = "VEJLH67I9QyQx8pn0nTxmciLSWj11bhDAtNU"
@@ -85,10 +90,12 @@ func main() {
 	err := relay.Call(&result, "block", BlockRequest{
 		Finality: "final",
 	})
+	//err := relay.Call(&result, "block", nil)
 	if err != nil {
 		log.Errorf(err.Error())
 		return
 	}
 	log.Infof("RPC relay response [%+v]", result)
 	relay.Close()
+	time.Sleep(3*time.Second)
 }
