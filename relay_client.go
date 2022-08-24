@@ -52,7 +52,7 @@ func newConnPool(strUrl string, header http.Header, options ...*RelayOption) *po
 }
 
 //Call only relay a JSON-RPC request to remote server
-func (c *RelayClient) Call(strRequest string) (strResponse string, err error) {
+func (c *RelayClient) Call(request []byte) (strResponse string, err error) {
 	var conn *websocket.Conn
 	conn = c.pool.Get().(*websocket.Conn)
 	if conn == nil {
@@ -60,7 +60,7 @@ func (c *RelayClient) Call(strRequest string) (strResponse string, err error) {
 		log.Errorf(err.Error())
 		return
 	}
-	err = conn.WriteMessage(websocket.TextMessage, []byte(strRequest))
+	err = conn.WriteMessage(websocket.TextMessage, request)
 	if err != nil {
 		log.Errorf("write message error [%s]", err.Error())
 		_ = conn.Close() //broken pipe maybe
@@ -75,7 +75,7 @@ func (c *RelayClient) Call(strRequest string) (strResponse string, err error) {
 }
 
 //CallNoReply send a JSON-RPC request to remote server and return immediately
-func (c *RelayClient) CallNoReply(strRequest string) (err error) {
+func (c *RelayClient) CallNoReply(request []byte) (err error) {
 	var conn *websocket.Conn
 	conn = c.pool.Get().(*websocket.Conn)
 	if conn == nil {
@@ -83,7 +83,7 @@ func (c *RelayClient) CallNoReply(strRequest string) (err error) {
 		log.Errorf(err.Error())
 		return
 	}
-	err = conn.WriteMessage(websocket.TextMessage, []byte(strRequest))
+	err = conn.WriteMessage(websocket.TextMessage, request)
 	if err != nil {
 		log.Errorf("write message error [%s]", err.Error())
 		_ = conn.Close() //broken pipe maybe
@@ -94,7 +94,7 @@ func (c *RelayClient) CallNoReply(strRequest string) (err error) {
 }
 
 //Subscribe send a JSON-RPC request to remote server and subscribe this channel (if request is nil, just subscribe)
-func (c *RelayClient) Subscribe(ctx context.Context, strRequest string, cb func(c context.Context, msg []byte) bool) (err error) {
+func (c *RelayClient) Subscribe(ctx context.Context, request []byte, cb func(c context.Context, msg []byte) bool) (err error) {
 	var conn *websocket.Conn
 	conn = c.pool.Get().(*websocket.Conn)
 	if conn == nil {
@@ -102,8 +102,8 @@ func (c *RelayClient) Subscribe(ctx context.Context, strRequest string, cb func(
 		log.Errorf(err.Error())
 		return
 	}
-	if strRequest != "" {
-		err = conn.WriteMessage(websocket.TextMessage, []byte(strRequest))
+	if len(request) != 0 {
+		err = conn.WriteMessage(websocket.TextMessage, request)
 		if err != nil {
 			log.Errorf("write message error [%s]", err.Error())
 			_ = conn.Close() //broken pipe maybe

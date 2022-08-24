@@ -199,6 +199,29 @@ func (c *WebSocketClient) CallNoReply(method string, params ...interface{}) (err
 }
 
 
+//Send send a request to remote server and return immediately
+func (c *WebSocketClient) Send(request []byte) (err error) {
+	if len(request) == 0 {
+		return log.Errorf("request is empty")
+	}
+	var conn *websocket.Conn
+	conn = c.pool.Get().(*websocket.Conn)
+	if conn == nil {
+		err = fmt.Errorf("websocket connection is nil")
+		log.Errorf(err.Error())
+		return
+	}
+	defer c.pool.Put(conn)
+	err = conn.WriteMessage(websocket.TextMessage, request)
+	if err != nil {
+		log.Errorf("write message error [%s]", err.Error())
+		_ = conn.Close() //broken pipe maybe
+		return
+	}
+
+	return
+}
+
 func (c *WebSocketClient) Close() {
 	c.pool.RemoveAll()
 	c.closed = true
