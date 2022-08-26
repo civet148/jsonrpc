@@ -35,9 +35,13 @@ func main() {
   "silent":true
 }`
 	log.Infof("sending request...")
-	relay := jsonrpc.NewRelayClient("wss://0.bridge.walletconnect.org/?env=browser&host=app.uniswap.org&protocol=wc&version=1", header)
+	relay, err := jsonrpc.NewRelayClient("wss://0.bridge.walletconnect.org/?env=browser&host=app.uniswap.org&protocol=wc&version=1", header)
+	if err != nil {
+		log.Errorf(err.Error())
+		return
+	}
 	defer relay.Close()
-	err := relay.CallNoReply([]byte(strRequest))
+	err = relay.CallNoReply([]byte(strRequest))
 	if err != nil {
 		log.Errorf(err.Error())
 		return

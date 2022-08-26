@@ -83,11 +83,15 @@ func main() {
 	strToken = base64.StdEncoding.EncodeToString([]byte(strToken))
 	header := http.Header{}
 	header.Add("Authorization", "Basic "+strToken)
-	relay := jsonrpc.NewWebSocketClient(strUrl, header)
+	relay, err := jsonrpc.NewWebSocketClient(strUrl, header)
+	if err != nil {
+		log.Errorf(err.Error())
+		return
+	}
 	defer relay.Close()
 
 	var result BlockResponse
-	err := relay.Call(&result, "block", BlockRequest{
+	err = relay.Call(&result, "block", BlockRequest{
 		Finality: "final",
 	})
 	//err := relay.Call(&result, "block", nil)

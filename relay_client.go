@@ -19,18 +19,22 @@ type RelayClient struct {
 	closed bool
 }
 
-func NewRelayClient(strUrl string, header http.Header, options ...*RelayOption) *RelayClient {
-
-	return &RelayClient{
-		pool: newConnPool(strUrl, header, options...),
+func NewRelayClient(strUrl string, header http.Header, options ...*RelayOption) (*RelayClient, error) {
+	p, err := newConnPool(strUrl, header, options...)
+	if err != nil {
+		log.Errorf(err.Error())
+		return nil, err
 	}
+	return &RelayClient{
+		pool: p,
+	}, nil
 }
 
-func newConnPool(strUrl string, header http.Header, options ...*RelayOption) *pool.Pool {
+func newConnPool(strUrl string, header http.Header, options ...*RelayOption) (*pool.Pool, error) {
 	u, err := url.Parse(strUrl)
 	if err != nil {
 		log.Panic("parse relay url error [%s]", err.Error())
-		return nil
+		return nil, err
 	}
 	if u.Scheme != UrlSchemeWS && u.Scheme != UrlSchemeWSS {
 		if "http" == strings.ToLower(u.Scheme) {
@@ -44,11 +48,12 @@ func newConnPool(strUrl string, header http.Header, options ...*RelayOption) *po
 		var conn *websocket.Conn
 		conn, _, err = websocket.DefaultDialer.Dial(u.String(), header)
 		if err != nil {
-			log.Panic("dial ", err)
+			log.Errorf(err.Error())
+			return nil
 		}
 		return conn
 	})
-	return p
+	return p, nil
 }
 
 //Call only relay a JSON-RPC request to remote server

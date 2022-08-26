@@ -20,19 +20,23 @@ type WebSocketClient struct {
 	locker sync.RWMutex
 }
 
-func NewWebSocketClient(strUrl string, header http.Header) *WebSocketClient {
-
+func NewWebSocketClient(strUrl string, header http.Header) (*WebSocketClient, error) {
+	p, err := newWebSocketPool(strUrl, header)
+	if err != nil {
+		log.Errorf(err.Error())
+		return nil, err
+	}
 	return &WebSocketClient{
 		requestID: baseRequestID,
-		pool: newWebSocketPool(strUrl, header),
-	}
+		pool: p,
+	}, nil
 }
 
-func newWebSocketPool(strUrl string, header http.Header) *pool.Pool {
+func newWebSocketPool(strUrl string, header http.Header) (*pool.Pool, error) {
 	u, err := url.Parse(strUrl)
 	if err != nil {
-		log.Panic("parse relay url error [%s]", err.Error())
-		return nil
+		log.Errorf("parse relay url error [%s]", err.Error())
+		return nil, err
 	}
 	log.Infof("header [%+v]", header)
 	if u.Scheme != UrlSchemeWS && u.Scheme != UrlSchemeWSS {
@@ -47,11 +51,12 @@ func newWebSocketPool(strUrl string, header http.Header) *pool.Pool {
 		var conn *websocket.Conn
 		conn, _, err = websocket.DefaultDialer.Dial(u.String(), header)
 		if err != nil {
-			log.Panic("dial ", err)
+			log.Errorf("dial ", err)
+			return nil
 		}
 		return conn
 	})
-	return p
+	return p, nil
 }
 
 //Call submit a JSON-RPC request to remote server
