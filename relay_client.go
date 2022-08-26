@@ -2,7 +2,6 @@ package jsonrpc
 
 import (
 	"context"
-	"fmt"
 	"github.com/civet148/log"
 	"github.com/civet148/pool"
 	"github.com/gorilla/websocket"
@@ -56,14 +55,25 @@ func newConnPool(strUrl string, header http.Header, options ...*RelayOption) (*p
 	return p, nil
 }
 
+func (c *RelayClient) getConn() (*websocket.Conn, error) {
+	var conn *websocket.Conn
+	ws := c.pool.Get()
+	if ws == nil {
+		return nil, log.Errorf("nil websocket connection")
+	}
+	conn = ws.(*websocket.Conn)
+	if conn == nil {
+		return nil, log.Errorf("websocket connection is nil")
+	}
+	return conn, nil
+}
+
 //Call only relay a JSON-RPC request to remote server
 func (c *RelayClient) Call(request []byte) (strResponse string, err error) {
 	var conn *websocket.Conn
-	conn = c.pool.Get().(*websocket.Conn)
-	if conn == nil {
-		err = fmt.Errorf("websocket connection is nil")
-		log.Errorf(err.Error())
-		return
+	conn, err = c.getConn()
+	if err != nil {
+		return "", log.Errorf(err.Error())
 	}
 	err = conn.WriteMessage(websocket.TextMessage, request)
 	if err != nil {
@@ -82,11 +92,9 @@ func (c *RelayClient) Call(request []byte) (strResponse string, err error) {
 //CallNoReply send a JSON-RPC request to remote server and return immediately
 func (c *RelayClient) CallNoReply(request []byte) (err error) {
 	var conn *websocket.Conn
-	conn = c.pool.Get().(*websocket.Conn)
-	if conn == nil {
-		err = fmt.Errorf("websocket connection is nil")
-		log.Errorf(err.Error())
-		return
+	conn, err = c.getConn()
+	if err != nil {
+		return log.Errorf(err.Error())
 	}
 	err = conn.WriteMessage(websocket.TextMessage, request)
 	if err != nil {
@@ -101,11 +109,9 @@ func (c *RelayClient) CallNoReply(request []byte) (err error) {
 //Subscribe send a JSON-RPC request to remote server and subscribe this channel (if request is nil, just subscribe)
 func (c *RelayClient) Subscribe(ctx context.Context, request []byte, cb func(c context.Context, msg []byte) bool) (err error) {
 	var conn *websocket.Conn
-	conn = c.pool.Get().(*websocket.Conn)
-	if conn == nil {
-		err = fmt.Errorf("websocket connection is nil")
-		log.Errorf(err.Error())
-		return
+	conn, err = c.getConn()
+	if err != nil {
+		return log.Errorf(err.Error())
 	}
 	if len(request) != 0 {
 		err = conn.WriteMessage(websocket.TextMessage, request)

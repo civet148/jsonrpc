@@ -2,7 +2,6 @@ package jsonrpc
 
 import (
 	"context"
-	"fmt"
 	"github.com/civet148/log"
 	"github.com/civet148/pool"
 	"github.com/gorilla/websocket"
@@ -59,12 +58,25 @@ func newWebSocketPool(strUrl string, header http.Header) (*pool.Pool, error) {
 	return p, nil
 }
 
+func (c *WebSocketClient) getConn() (*websocket.Conn, error) {
+	var conn *websocket.Conn
+	ws := c.pool.Get()
+	if ws == nil {
+		return nil, log.Errorf("nil websocket connection")
+	}
+	conn = ws.(*websocket.Conn)
+	if conn == nil {
+		return nil, log.Errorf("websocket connection is nil")
+	}
+	return conn, nil
+}
+
 //Call submit a JSON-RPC request to remote server
 func (c *WebSocketClient) Call(out interface{}, method string, params ...interface{}) (err error) {
 	var conn *websocket.Conn
-	conn = c.pool.Get().(*websocket.Conn)
-	if conn == nil {
-		return log.Errorf("websocket connection pool is nil")
+	conn, err = c.getConn()
+	if err != nil {
+		return log.Errorf(err.Error())
 	}
 	var request []byte
 	request, err = MarshalJSONRpcRequest(genRequestID(), method, params...)
@@ -94,11 +106,9 @@ func (c *WebSocketClient) Call(out interface{}, method string, params ...interfa
 //SubscribeCall send a JSON-RPC request to remote server and subscribe this channel (if method is nil, just subscribe)
 func (c *WebSocketClient) SubscribeCall(ctx context.Context, cb func(ctx context.Context, msg []byte) bool, method string, params ...interface{}) (err error) {
 	var conn *websocket.Conn
-	conn = c.pool.Get().(*websocket.Conn)
-	if conn == nil {
-		err = fmt.Errorf("websocket connection is nil")
-		log.Errorf(err.Error())
-		return
+	conn, err = c.getConn()
+	if err != nil {
+		return log.Errorf(err.Error())
 	}
 	if method != "" {
 		var request []byte
@@ -140,11 +150,9 @@ func (c *WebSocketClient) SubscribeCall(ctx context.Context, cb func(ctx context
 //Subscribe send a request to remote server and subscribe this channel (if request is nil, just subscribe)
 func (c *WebSocketClient) Subscribe(ctx context.Context, request []byte, cb func(c context.Context, msg []byte) bool) (err error) {
 	var conn *websocket.Conn
-	conn = c.pool.Get().(*websocket.Conn)
-	if conn == nil {
-		err = fmt.Errorf("websocket connection is nil")
-		log.Errorf(err.Error())
-		return
+	conn, err = c.getConn()
+	if err != nil {
+		return log.Errorf(err.Error())
 	}
 	if len(request) != 0 {
 		err = conn.WriteMessage(websocket.TextMessage, request)
@@ -179,11 +187,9 @@ func (c *WebSocketClient) Subscribe(ctx context.Context, request []byte, cb func
 //CallNoReply send a JSON-RPC request to remote server and return immediately
 func (c *WebSocketClient) CallNoReply(method string, params ...interface{}) (err error) {
 	var conn *websocket.Conn
-	conn = c.pool.Get().(*websocket.Conn)
-	if conn == nil {
-		err = fmt.Errorf("websocket connection is nil")
-		log.Errorf(err.Error())
-		return
+	conn, err = c.getConn()
+	if err != nil {
+		return log.Errorf(err.Error())
 	}
 	if method != "" {
 		var request []byte
@@ -210,11 +216,9 @@ func (c *WebSocketClient) Send(request []byte) (err error) {
 		return log.Errorf("request is empty")
 	}
 	var conn *websocket.Conn
-	conn = c.pool.Get().(*websocket.Conn)
-	if conn == nil {
-		err = fmt.Errorf("websocket connection is nil")
-		log.Errorf(err.Error())
-		return
+	conn, err = c.getConn()
+	if err != nil {
+		return log.Errorf(err.Error())
 	}
 	defer c.pool.Put(conn)
 	err = conn.WriteMessage(websocket.TextMessage, request)
