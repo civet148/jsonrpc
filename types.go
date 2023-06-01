@@ -3,6 +3,8 @@ package jsonrpc
 import (
 	"encoding/json"
 	"github.com/civet148/log"
+	"github.com/gorilla/websocket"
+	"sync"
 )
 
 const (
@@ -22,10 +24,10 @@ type JSONRpcRequest struct {
 }
 
 type JSONRpcResponse struct {
-	Id      int         `json:"id"`
-	Jsonrpc string      `json:"jsonrpc"`
+	Id      int           `json:"id"`
+	Jsonrpc string        `json:"jsonrpc"`
 	Error   *JSONRpcError `json:"error"`
-	Result  interface{} `json:"result"`
+	Result  interface{}   `json:"result"`
 }
 
 type JSONRpcError struct {
@@ -43,7 +45,7 @@ func (m *JSONRpcRequest) Marshal() ([]byte, error) {
 
 func (m *JSONRpcResponse) Unmarshal(data []byte, v interface{}) error {
 	m.Result = v
-	err :=  json.Unmarshal(data, m)
+	err := json.Unmarshal(data, m)
 	if err != nil {
 		return log.Errorf("unmarshal response data error [%s]", err.Error())
 	}
@@ -72,4 +74,23 @@ func MakeJSONRpcRequest(id int64, method string, params ...interface{}) *JSONRpc
 func MarshalJSONRpcRequest(id int64, method string, params ...interface{}) (data []byte, err error) {
 	req := MakeJSONRpcRequest(id, method, params...)
 	return req.Marshal()
+}
+
+type RelayConn struct {
+	locker sync.Mutex //rpc write lock
+	conn   *websocket.Conn
+}
+
+func (c *RelayConn) Close() error {
+	return c.conn.Close()
+}
+
+func (c *RelayConn) ReadMessage() (int, []byte, error) {
+	return c.conn.ReadMessage()
+}
+
+func (c *RelayConn) WriteMessage(msgType int, data []byte) error {
+	c.locker.Lock()
+	defer c.locker.Unlock()
+	return c.conn.WriteMessage(msgType, data)
 }
