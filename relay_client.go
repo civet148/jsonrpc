@@ -8,11 +8,16 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 )
 
 type SubFunc func(context.Context, []byte) bool
 
 type RelayOption struct {
+}
+
+type SubscribeOption struct {
+	Block bool //blocking subscribe channel
 }
 
 type SubNotify struct {
@@ -21,9 +26,13 @@ type SubNotify struct {
 }
 
 type RelayClient struct {
-	sub     *RelayConn     //subscribe connection
-	pool    *pool.Pool     //rpc call connection pool
-	channel chan SubNotify //rpc subscribe channel
+	subscribed bool           //is subscribed
+	locker     sync.RWMutex   //internal lock
+	sub        *RelayConn     //subscribe connection
+	pool       *pool.Pool     //rpc call connection pool
+	ready      chan bool      //is all works ready
+	notify     chan SubNotify //rpc subscribe channel
+	cbs        []SubFunc      //rpc callback functions
 }
 
 func NewRelayClient(strUrl string, header http.Header, options ...*RelayOption) (*RelayClient, error) {
@@ -36,9 +45,10 @@ func NewRelayClient(strUrl string, header http.Header, options ...*RelayOption) 
 		return nil, log.Errorf(err.Error())
 	}
 	c := &RelayClient{
-		pool:    p,
-		sub:     sub,
-		channel: make(chan SubNotify),
+		pool:   p,
+		sub:    sub,
+		ready:  make(chan bool),
+		notify: make(chan SubNotify),
 	}
 	go c.selectSubChannel()
 	return c, nil
@@ -128,32 +138,14 @@ func (c *RelayClient) selectSubChannel() {
 	var running bool
 	for {
 		select {
-		case cb := <-c.channel:
+		case cb := <-c.notify:
 			{
 				if !running {
 					running = true
-					go c.readFromSubscribeSocket(cb)
+					go c.readSubSocket(cb)
 				}
+				c.ready <- true
 			}
-		}
-	}
-
-}
-
-func (c *RelayClient) readFromSubscribeSocket(sn SubNotify) {
-	var err error
-	conn := c.sub
-	log.Debugf("subscribe reading...")
-	for {
-		var msg []byte
-		_, msg, err = conn.ReadMessage()
-		if err != nil {
-			log.Warnf("read websocket error [%s] socket closed", err.Error())
-			break
-		}
-		if ok := sn.cb(sn.ctx, msg); ok == false {
-			log.Warnf("callback return false, subscribe will stop")
-			break //subscribe stopped
 		}
 	}
 }
@@ -176,21 +168,42 @@ func (c *RelayClient) CallNoReply(request []byte) (err error) {
 }
 
 //Subscribe send a JSON-RPC request to remote server and subscribe this channel (if request is nil, just subscribe)
-func (c *RelayClient) Subscribe(ctx context.Context, request []byte, cb func(context.Context, []byte) bool) (err error) {
-	var conn *RelayConn
-	conn = c.sub
+func (c *RelayClient) Subscribe(ctx context.Context, request []byte, cb func(context.Context, []byte) bool, options ...*SubscribeOption) (err error) {
 	if len(request) == 0 || cb == nil {
 		return log.Errorf("empty request or nil callback")
 	}
-	err = conn.WriteMessage(websocket.BinaryMessage, request)
-	if err != nil {
-		log.Errorf("write message error [%s]", err.Error())
-		_ = conn.Close() //broken pipe maybe
-		return
-	}
-	c.channel <- SubNotify{
+	c.locker.Lock()
+	defer c.locker.Unlock()
+	sn := SubNotify{
 		cb:  cb,
 		ctx: ctx,
+	}
+	var block bool
+	if len(options) != 0 {
+		opt := options[0]
+		if opt.Block {
+			block = true
+		}
+	}
+	if block {
+		if c.subscribed {
+			return log.Errorf("this channel is already subscribed")
+		}
+		if err = c.writeSubSocket(request); err != nil {
+			return log.Errorf(err.Error())
+		}
+		c.readSubSocket(sn)
+	} else {
+		if err = c.writeSubSocket(request); err != nil {
+			return log.Errorf(err.Error())
+		}
+		c.notify <- sn
+		select {
+		case _ = <-c.ready:
+			{
+				c.subscribed = true
+			}
+		}
 	}
 	return
 }
@@ -200,4 +213,33 @@ func (c *RelayClient) Close() {
 	if c.sub != nil {
 		c.sub.Close()
 	}
+}
+
+func (c *RelayClient) readSubSocket(sn SubNotify) {
+	var err error
+	conn := c.sub
+	log.Debugf("subscribe reading...")
+	for {
+		var msg []byte
+		_, msg, err = conn.ReadMessage()
+		if err != nil {
+			log.Warnf("read websocket error [%s] socket closed", err.Error())
+			break
+		}
+		if ok := sn.cb(sn.ctx, msg); ok == false {
+			log.Warnf("callback return false, subscribe will stop")
+			break //subscribe stopped
+		}
+	}
+}
+
+func (c *RelayClient) writeSubSocket(request []byte) (err error) {
+	conn := c.sub
+	err = c.sub.WriteMessage(websocket.BinaryMessage, request)
+	if err != nil {
+		log.Errorf("subscribe websocket write message error [%s]", err.Error())
+		_ = conn.Close() //broken pipe maybe
+		return
+	}
+	return nil
 }
