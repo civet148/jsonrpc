@@ -9,4 +9,5 @@ require (
 	github.com/filecoin-project/go-jsonrpc v0.3.1
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.5.0
+	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 )

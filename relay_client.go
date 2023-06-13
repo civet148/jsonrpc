@@ -5,15 +5,18 @@ import (
 	"github.com/civet148/log"
 	"github.com/civet148/pool"
 	"github.com/gorilla/websocket"
+	"golang.org/x/time/rate"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 )
 
 type SubFunc func(context.Context, []byte) bool
 
 type RelayOption struct {
+	MaxQPS int //rate limit of QPS (0 means no limit)
 }
 
 type SubscribeOption struct {
@@ -33,32 +36,50 @@ type RelayClient struct {
 	ready      chan bool      //is all works ready
 	notify     chan SubNotify //rpc subscribe channel
 	cbs        []SubFunc      //rpc callback functions
+	opt        *RelayOption   //relay option
+	limiter    *rate.Limiter  //rate limit
 }
 
 func NewRelayClient(strUrl string, header http.Header, options ...*RelayOption) (*RelayClient, error) {
-	p, err := newConnPool(strUrl, header, options...)
+	var opt *RelayOption
+	if len(options) != 0 {
+		opt = options[0]
+	} else {
+		opt = makeDefaultRelayOption()
+	}
+	p, err := newConnPool(strUrl, header)
 	if err != nil {
 		return nil, log.Errorf(err.Error())
 	}
-	sub, err := newConn(strUrl, header, options...)
+	sub, err := newConn(strUrl, header)
 	if err != nil {
 		return nil, log.Errorf(err.Error())
+	}
+	var limiter *rate.Limiter
+	if opt.MaxQPS > 0 {
+		limiter = rate.NewLimiter(rate.Every(time.Second), opt.MaxQPS)
 	}
 	c := &RelayClient{
-		pool:   p,
-		sub:    sub,
-		ready:  make(chan bool),
-		notify: make(chan SubNotify),
+		pool:    p,
+		sub:     sub,
+		opt:     opt,
+		limiter: limiter,
+		ready:   make(chan bool),
+		notify:  make(chan SubNotify),
 	}
 	go c.selectSubChannel()
 	return c, nil
 }
 
-func newConnPool(strUrl string, header http.Header, options ...*RelayOption) (*pool.Pool, error) {
+func makeDefaultRelayOption() *RelayOption {
+	return &RelayOption{}
+}
+
+func newConnPool(strUrl string, header http.Header) (*pool.Pool, error) {
 	var p = pool.New(func() interface{} {
 		var err error
 		var conn *RelayConn
-		conn, err = newConn(strUrl, header, options...)
+		conn, err = newConn(strUrl, header)
 		if err != nil {
 			return log.Errorf(err.Error())
 		}
@@ -67,7 +88,7 @@ func newConnPool(strUrl string, header http.Header, options ...*RelayOption) (*p
 	return p, nil
 }
 
-func newConn(strUrl string, header http.Header, options ...*RelayOption) (conn *RelayConn, err error) {
+func newConn(strUrl string, header http.Header) (conn *RelayConn, err error) {
 	u, err := parseUrl(strUrl)
 	if err != nil {
 		log.Panic("parse relay url error [%s]", err.Error())
@@ -113,24 +134,37 @@ func (c *RelayClient) getConn() (*RelayConn, error) {
 	return conn, nil
 }
 
-//Call only relay a JSON-RPC request to remote server
-func (c *RelayClient) Call(request []byte) (strResponse string, err error) {
+func (c *RelayClient) limitWait() error {
+	if c.limiter != nil {
+		err := c.limiter.Wait(context.Background())
+		if err != nil {
+			return log.Errorf("rate limit wait error [%s]", err)
+		}
+	}
+	return nil
+}
+
+// Call only relay a JSON-RPC request to remote server
+func (c *RelayClient) Call(request []byte) (response []byte, err error) {
 	var conn *RelayConn
+	err = c.limitWait()
+	if err != nil {
+		return nil, log.Errorf(err.Error())
+	}
 	conn, err = c.getConn()
 	if err != nil {
-		return "", log.Errorf(err.Error())
+		return nil, log.Errorf(err.Error())
 	}
 	err = conn.WriteMessage(websocket.BinaryMessage, request)
 	if err != nil {
-		log.Errorf("write message error [%s]", err.Error())
 		_ = conn.Close() //broken pipe maybe
-		return
+		return nil, log.Errorf("write message error [%s]", err.Error())
 	}
 	defer c.pool.Put(conn)
-
-	var msg []byte
-	_, msg, err = conn.ReadMessage()
-	strResponse = string(msg)
+	_, response, err = conn.ReadMessage()
+	if err != nil {
+		return nil, log.Errorf(err.Error())
+	}
 	return
 }
 
@@ -150,7 +184,7 @@ func (c *RelayClient) selectSubChannel() {
 	}
 }
 
-//CallNoReply send a JSON-RPC request to remote server and return immediately
+// CallNoReply send a JSON-RPC request to remote server and return immediately
 func (c *RelayClient) CallNoReply(request []byte) (err error) {
 	var conn *RelayConn
 	conn, err = c.getConn()
@@ -167,7 +201,7 @@ func (c *RelayClient) CallNoReply(request []byte) (err error) {
 	return
 }
 
-//Subscribe send a JSON-RPC request to remote server and subscribe this channel (if request is nil, just subscribe)
+// Subscribe send a JSON-RPC request to remote server and subscribe this channel (if request is nil, just subscribe)
 func (c *RelayClient) Subscribe(ctx context.Context, request []byte, cb func(context.Context, []byte) bool, options ...*SubscribeOption) (err error) {
 	if len(request) == 0 || cb == nil {
 		return log.Errorf("empty request or nil callback")
