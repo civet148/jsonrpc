@@ -206,8 +206,7 @@ func (c *RelayClient) Subscribe(ctx context.Context, request []byte, cb func(con
 	if len(request) == 0 || cb == nil {
 		return log.Errorf("empty request or nil callback")
 	}
-	c.locker.Lock()
-	defer c.locker.Unlock()
+
 	sn := SubNotify{
 		cb:  cb,
 		ctx: ctx,
@@ -220,14 +219,20 @@ func (c *RelayClient) Subscribe(ctx context.Context, request []byte, cb func(con
 		}
 	}
 	if block {
+		c.locker.Lock()
 		if c.subscribed {
+			c.locker.Unlock()
 			return log.Errorf("this channel is already subscribed")
 		}
+		c.subscribed = true
+		c.locker.Unlock()
 		if err = c.writeSubSocket(request); err != nil {
 			return log.Errorf(err.Error())
 		}
 		c.readSubSocket(sn)
 	} else {
+		c.locker.Lock()
+		defer c.locker.Unlock()
 		if err = c.writeSubSocket(request); err != nil {
 			return log.Errorf(err.Error())
 		}

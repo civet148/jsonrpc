@@ -21,18 +21,23 @@ func main() {
 	}
 	defer relay.Close()
 	req1 := "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"Filecoin.ChainNotify\",\"params\":[],\"meta\":{\"SpanContext\":\"AAB/fIpdCiYJp3/GcvLY8HbLAfx3mBcbkC+UAgA=\"}}"
-	err = subscribe(relay, req1, false)
-	if err != nil {
-		log.Errorf("sub 1 error [%s]", err.Error())
-		return
-	}
+	go func() {
+		err = subscribe(relay, req1, true)
+		if err != nil {
+			log.Errorf("sub 1 error [%s]", err.Error())
+		}
+	}()
+
+	time.Sleep(3 * time.Second) //wait for subscribe routine 1 startup
+
 	req2 := "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"Filecoin.ChainNotify\",\"params\":[],\"meta\":{\"SpanContext\":\"AAA6xgjut6cbxaJQHN1tqNjDAUHQBQSFdtmdAgA=\"}}"
-	err = subscribe(relay, req2, false)
-	if err != nil {
-		log.Errorf("sub 2 error [%s]", err.Error())
-		time.Sleep(60 * time.Minute)
-		return
-	}
+	go func() {
+		err = subscribe(relay, req2, true)
+		if err != nil {
+			log.Errorf("sub 2 error [%s]", err.Error())
+		}
+	}()
+
 	time.Sleep(60 * time.Minute)
 }
 
