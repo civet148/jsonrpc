@@ -98,6 +98,10 @@ func (c *RelayClient) newConnPool(strUrl string, header http.Header) (*pool.Pool
 	return p, nil
 }
 
+func (c *RelayClient) GetConnCount() int {
+	return c.count
+}
+
 func (c *RelayClient) newConn(strUrl string, header http.Header) (conn *RelayConn, err error) {
 	u, err := parseUrl(strUrl)
 	if err != nil {
