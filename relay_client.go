@@ -16,7 +16,8 @@ import (
 type SubFunc func(context.Context, []byte) bool
 
 type RelayOption struct {
-	MaxQPS int //rate limit of QPS (0 means no limit)
+	MaxQPS         int //rate limit of QPS (0 means no limit)
+	MaxConnections int //maximum number of connections (0 means no limit)
 }
 
 type SubscribeOption struct {
@@ -38,6 +39,7 @@ type RelayClient struct {
 	cbs        []SubFunc      //rpc callback functions
 	opt        *RelayOption   //relay option
 	limiter    *rate.Limiter  //rate limit
+	count      int            //connection count
 }
 
 func NewRelayClient(strUrl string, header http.Header, options ...*RelayOption) (*RelayClient, error) {
@@ -47,25 +49,25 @@ func NewRelayClient(strUrl string, header http.Header, options ...*RelayOption) 
 	} else {
 		opt = makeDefaultRelayOption()
 	}
-	p, err := newConnPool(strUrl, header)
-	if err != nil {
-		return nil, log.Errorf(err.Error())
-	}
-	sub, err := newConn(strUrl, header)
-	if err != nil {
-		return nil, log.Errorf(err.Error())
-	}
+
+	var err error
 	var limiter *rate.Limiter
 	if opt.MaxQPS > 0 {
 		limiter = rate.NewLimiter(rate.Every(time.Second), opt.MaxQPS)
 	}
 	c := &RelayClient{
-		pool:    p,
-		sub:     sub,
 		opt:     opt,
 		limiter: limiter,
 		ready:   make(chan bool),
 		notify:  make(chan SubNotify),
+	}
+	c.pool, err = c.newConnPool(strUrl, header)
+	if err != nil {
+		return nil, log.Errorf(err.Error())
+	}
+	c.sub, err = c.newConn(strUrl, header)
+	if err != nil {
+		return nil, log.Errorf(err.Error())
 	}
 	go c.selectSubChannel()
 	return c, nil
@@ -75,20 +77,28 @@ func makeDefaultRelayOption() *RelayOption {
 	return &RelayOption{}
 }
 
-func newConnPool(strUrl string, header http.Header) (*pool.Pool, error) {
+func (c *RelayClient) newConnPool(strUrl string, header http.Header) (*pool.Pool, error) {
 	var p = pool.New(func() interface{} {
 		var err error
 		var conn *RelayConn
-		conn, err = newConn(strUrl, header)
-		if err != nil {
-			return log.Errorf(err.Error())
+		if c.opt != nil && c.opt.MaxConnections > 0 {
+			if c.count > c.opt.MaxConnections {
+				log.Warnf("connection count is out of limit %d", c.opt.MaxConnections)
+				return nil
+			}
 		}
+		conn, err = c.newConn(strUrl, header)
+		if err != nil {
+			log.Errorf("new connection error [%s]", err.Error())
+			return nil
+		}
+		c.count++
 		return conn
 	})
 	return p, nil
 }
 
-func newConn(strUrl string, header http.Header) (conn *RelayConn, err error) {
+func (c *RelayClient) newConn(strUrl string, header http.Header) (conn *RelayConn, err error) {
 	u, err := parseUrl(strUrl)
 	if err != nil {
 		log.Panic("parse relay url error [%s]", err.Error())
@@ -128,9 +138,6 @@ func (c *RelayClient) getConn() (*RelayConn, error) {
 		return nil, log.Errorf("nil websocket connection")
 	}
 	conn = ws.(*RelayConn)
-	if conn == nil {
-		return nil, log.Errorf("websocket connection is nil")
-	}
 	return conn, nil
 }
 
