@@ -13,7 +13,6 @@ import (
 
 func main() {
 	var strUrl = "ws://172.16.35.31:1234/rpc/v0"
-
 	relay, err := jsonrpc.NewRelayClient(strUrl, nil)
 	if err != nil {
 		log.Errorf(err.Error())

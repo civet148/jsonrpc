@@ -13,6 +13,10 @@ import (
 	"time"
 )
 
+const (
+	allowMaxQps = 1000 //only max qps allowed
+)
+
 type SubFunc func(context.Context, []byte) bool
 
 type RelayOption struct {
@@ -52,8 +56,9 @@ func NewRelayClient(strUrl string, header http.Header, options ...*RelayOption) 
 
 	var err error
 	var limiter *rate.Limiter
-	if opt.MaxQPS > 0 {
-		limiter = rate.NewLimiter(rate.Every(time.Second), opt.MaxQPS)
+	if opt.MaxQPS > 0 && opt.MaxQPS <= allowMaxQps {
+		ms := allowMaxQps / opt.MaxQPS
+		limiter = rate.NewLimiter(rate.Every(time.Duration(ms)*time.Millisecond), opt.MaxQPS)
 	}
 	c := &RelayClient{
 		opt:     opt,
