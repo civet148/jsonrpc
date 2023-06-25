@@ -10,11 +10,10 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"time"
 )
 
 const (
-	allowMaxQps = 1000 //only max qps allowed
+	allowMaxQPS = 10000 //only max qps allowed
 )
 
 type SubFunc func(context.Context, []byte) bool
@@ -56,9 +55,13 @@ func NewRelayClient(strUrl string, header http.Header, options ...*RelayOption) 
 
 	var err error
 	var limiter *rate.Limiter
-	if opt.MaxQPS > 0 && opt.MaxQPS <= allowMaxQps {
-		ms := allowMaxQps / opt.MaxQPS
-		limiter = rate.NewLimiter(rate.Every(time.Duration(ms)*time.Millisecond), opt.MaxQPS)
+	if opt.MaxQPS > 0 {
+		qps := opt.MaxQPS
+		if qps > allowMaxQPS {
+			qps = allowMaxQPS
+			log.Warnf("max qps is limited to %d", qps)
+		}
+		limiter = rate.NewLimiter(rate.Limit(qps), qps)
 	}
 	c := &RelayClient{
 		opt:     opt,
