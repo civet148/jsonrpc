@@ -7,10 +7,16 @@ package main
 
 import (
 	"github.com/civet148/jsonrpc"
-	"github.com/civet148/jsonrpc/examples/api"
-	"github.com/civet148/jsonrpc/examples/common"
 	"github.com/civet148/log"
 )
+
+type GatewayAPI interface {
+	Add(a, b int) (int, error)
+	Sub(a, b int) (int, error)
+	Mul(a, b int) (int, error)
+	Div(a, b int) (int, error)
+	Ping() (string, error)
+}
 
 type GatewayServer struct {
 }
@@ -39,25 +45,12 @@ func (m *GatewayServer) Ping() (string, error) {
 }
 
 func main() {
-	TestRPCServer()
-}
-
-func TestRPCServer() {
-
+	var strNamespace = "Gateway"
 	serverHandler := &GatewayServer{}
-	////listen http://host:port/ for RPC call with standard HTTP server
-	//rpcServer := jsonrpc.NewServer(common.GatewayNamespace, serverHandler)
-	//log.Infof("namespace [%s] address [%s] listening...\n", common.GatewayNamespace, common.GatewayHttpAddr)
-	//if err := http.ListenAndServe(common.GatewayHttpAddr, rpcServer); err != nil {
-	//	log.Errorf(err.Error())
-	//	return
-	//}
-
 	//listen http://host:port/rpc/v0 for RPC call with internal HTTP server
-	var strUrl = common.GatewayUrl
-	rpcServer := jsonrpc.NewServer(common.GatewayNamespace, serverHandler)
-
-	log.Infof("namespace [%s] url [%s] listening...", common.GatewayNamespace, strUrl)
+	var strUrl = "ws://127.0.0.1:8000/rpc/v0"
+	rpcServer := jsonrpc.NewServer(strNamespace, serverHandler)
+	log.Infof("namespace [%s] url [%s] listening...", strNamespace, strUrl)
 	if err := rpcServer.ListenAndServe(strUrl); err != nil {
 		log.Panic(err.Error())
 		return
@@ -72,7 +65,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/civet148/jsonrpc"
-	"github.com/civet148/jsonrpc/examples/common"
 	"github.com/civet148/log"
 	"runtime"
 )
@@ -95,15 +87,16 @@ func init() {
 
 func main() {
 	var client GatewayClient
-	var strRemoteAddr = common.GatewayUrl
-	c, err := jsonrpc.NewClient(context.Background(), strRemoteAddr, common.GatewayNamespace, nil, &client)
+    var strNamespace = "Gateway"
+	var strRemoteAddr = "ws://127.0.0.1:8000/rpc/v0"
+	c, err := jsonrpc.NewClient(context.Background(), strRemoteAddr, strNamespace, nil, &client)
 	if err != nil {
 		fmt.Printf("jsonrpc.NewClient error [%s]\n", err.Error())
 		return
 	}
 	defer c.Close()
 
-	log.Infof("namespace [%s] connect address [%s] ok\n", common.GatewayNamespace, strRemoteAddr)
+	log.Infof("namespace [%s] connect address [%s] ok\n", strNamespace, strRemoteAddr)
 	var n int
 	var pong string
 	pong, err = client.Ping() //expect 'pong' return from server
