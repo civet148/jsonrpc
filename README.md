@@ -21,8 +21,8 @@ type GatewayAPI interface {
 type GatewayServer struct {
 }
 
-//ensure gateway server implemented api.GatewayAPI
-var _ api.GatewayAPI = (*GatewayServer)(nil)
+//ensure gateway server implemented GatewayAPI
+var _ GatewayAPI = (*GatewayServer)(nil)
 
 func (m *GatewayServer) Add(a, b int) (int, error) {
 	return a + b, nil
