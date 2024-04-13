@@ -21,6 +21,7 @@ type SubFunc func(context.Context, []byte) bool
 type RelayOption struct {
 	MaxQPS         int //rate limit of QPS (0 means no limit)
 	MaxConnections int //maximum number of connections (0 means no limit)
+	MsgType        int //websocket message type
 }
 
 type SubscribeOption struct {
@@ -43,12 +44,16 @@ type RelayClient struct {
 	opt        *RelayOption   //relay option
 	limiter    *rate.Limiter  //rate limit
 	count      int            //connection count
+	strUrl     string         //relay url
 }
 
 func NewRelayClient(strUrl string, header http.Header, options ...*RelayOption) (*RelayClient, error) {
 	var opt *RelayOption
 	if len(options) != 0 {
 		opt = options[0]
+		if opt.MsgType == 0 {
+			opt.MsgType = websocket.TextMessage
+		}
 	} else {
 		opt = makeDefaultRelayOption()
 	}
@@ -66,6 +71,7 @@ func NewRelayClient(strUrl string, header http.Header, options ...*RelayOption) 
 	c := &RelayClient{
 		opt:     opt,
 		limiter: limiter,
+		strUrl:  strUrl,
 		ready:   make(chan bool),
 		notify:  make(chan SubNotify),
 	}
@@ -82,7 +88,9 @@ func NewRelayClient(strUrl string, header http.Header, options ...*RelayOption) 
 }
 
 func makeDefaultRelayOption() *RelayOption {
-	return &RelayOption{}
+	return &RelayOption{
+		MsgType: websocket.TextMessage,
+	}
 }
 
 func (c *RelayClient) newConnPool(strUrl string, header http.Header) (*pool.Pool, error) {
@@ -174,7 +182,7 @@ func (c *RelayClient) Call(request []byte) (response []byte, err error) {
 	if err != nil {
 		return nil, log.Errorf(err.Error())
 	}
-	err = conn.WriteMessage(websocket.BinaryMessage, request)
+	err = conn.WriteMessage(c.opt.MsgType, request)
 	if err != nil {
 		_ = conn.Close() //broken pipe maybe
 		return nil, log.Errorf("write message error [%s]", err.Error())
@@ -210,7 +218,7 @@ func (c *RelayClient) CallNoReply(request []byte) (err error) {
 	if err != nil {
 		return log.Errorf(err.Error())
 	}
-	err = conn.WriteMessage(websocket.BinaryMessage, request)
+	err = conn.WriteMessage(c.opt.MsgType, request)
 	if err != nil {
 		log.Errorf("write message error [%s]", err.Error())
 		_ = conn.Close() //broken pipe maybe
@@ -222,8 +230,8 @@ func (c *RelayClient) CallNoReply(request []byte) (err error) {
 
 // Subscribe send a JSON-RPC request to remote server and subscribe this channel (if request is nil, just subscribe)
 func (c *RelayClient) Subscribe(ctx context.Context, request []byte, cb func(context.Context, []byte) bool, options ...*SubscribeOption) (err error) {
-	if len(request) == 0 || cb == nil {
-		return log.Errorf("empty request or nil callback")
+	if cb == nil {
+		return log.Errorf("empty callback")
 	}
 
 	sn := SubNotify{
@@ -237,6 +245,7 @@ func (c *RelayClient) Subscribe(ctx context.Context, request []byte, cb func(con
 			block = true
 		}
 	}
+
 	if block {
 		c.locker.Lock()
 		if c.subscribed {
@@ -275,11 +284,9 @@ func (c *RelayClient) Close() {
 
 func (c *RelayClient) readSubSocket(sn SubNotify) {
 	var err error
-	conn := c.sub
-	log.Debugf("subscribe reading...")
 	for {
 		var msg []byte
-		_, msg, err = conn.ReadMessage()
+		_, msg, err = c.sub.ReadMessage()
 		if err != nil {
 			log.Warnf("read websocket error [%s] socket closed", err.Error())
 			break
@@ -291,9 +298,9 @@ func (c *RelayClient) readSubSocket(sn SubNotify) {
 	}
 }
 
-func (c *RelayClient) writeSubSocket(request []byte) (err error) {
+func (c *RelayClient) writeSubSocket(msg []byte) (err error) {
 	conn := c.sub
-	err = c.sub.WriteMessage(websocket.BinaryMessage, request)
+	err = c.sub.WriteMessage(c.opt.MsgType, msg)
 	if err != nil {
 		log.Errorf("subscribe websocket write message error [%s]", err.Error())
 		_ = conn.Close() //broken pipe maybe
